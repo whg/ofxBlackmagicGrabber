@@ -11,6 +11,8 @@
 #include "DeckLinkAPI.h"
 #include "ofBaseTypes.h"
 
+#include "ofxBlackmagicAudioReceiver.h"
+
 class ofxBlackmagicGrabber: public ofBaseVideoGrabber, public IDeckLinkInputCallback {
 public:
 	ofxBlackmagicGrabber();
@@ -44,11 +46,16 @@ public:
 	void setVerbose(bool bTalkToMe);
 	void setDeviceID(int _deviceID);
 	void setDesiredFrameRate(int framerate);
+  
+  void setAudioSettings(int sampleDepth, int nChannels);
+  
 	void videoSettings();
 	void setPixelFormat(ofPixelFormat pixelFormat);
 	ofPixelFormat getPixelFormat();
 
 	static string LOG_NAME;
+  
+  void setAudioReceiver(ofxBlackmagicAudioReceiver *receiver);
 
 private:
 	IDeckLink 					*deckLink;
@@ -60,6 +67,7 @@ private:
 
 	BMDTimecodeFormat		g_timecodeFormat;
 	int						g_videoModeIndex;
+  
 	int						g_audioChannels;
 	int						g_audioSampleDepth;
 
@@ -84,6 +92,8 @@ private:
 	int						deviceID;
 
 	bool					bDeinterlace;
+  
+  ofxBlackmagicAudioReceiver *audioReceiver;
 };
 
 #endif /* OFXBLACKMAGICGRABBER_H_ */

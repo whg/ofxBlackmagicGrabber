@@ -458,7 +458,7 @@ ofxBlackmagicGrabber::ofxBlackmagicGrabber() {
 	g_timecodeFormat = 0;
 	g_videoModeIndex = -1;
 	g_audioChannels = 2;
-	g_audioSampleDepth = 16;
+	g_audioSampleDepth = bmdAudioSampleType16bitInteger;
 	bNewFrameArrived = false;
 	bIsNewFrame = false;
 	frameCount = 0;
@@ -469,6 +469,8 @@ ofxBlackmagicGrabber::ofxBlackmagicGrabber() {
 	deviceID = 0;
 	bDeinterlace = false;
 	CreateLookupTables();
+  
+  audioReceiver = NULL;
 }
 
 ofxBlackmagicGrabber::~ofxBlackmagicGrabber() {
@@ -521,6 +523,8 @@ HRESULT ofxBlackmagicGrabber::VideoInputFormatChanged(BMDVideoInputFormatChanged
 	return S_OK;
 }
 
+float ttime = 0;
+
 HRESULT ofxBlackmagicGrabber::VideoInputFrameArrived(IDeckLinkVideoInputFrame * videoFrame, IDeckLinkAudioInputPacket * audioFrame){
 	IDeckLinkVideoFrame*	                rightEyeFrame = NULL;
 	IDeckLinkVideoFrame3DExtensions*        threeDExtensions = NULL;
@@ -560,8 +564,7 @@ HRESULT ofxBlackmagicGrabber::VideoInputFrameArrived(IDeckLinkVideoInputFrame * 
 		//					<< "- Size: " << (videoFrame->GetRowBytes() * videoFrame->GetHeight()) << "bytes";
 		
 		if (timecodeString)
-//			free((void*)timecodeString);
-      [timecodeString release];
+    [timecodeString release];
 		
 		yuvToRGB(videoFrame);
 		if(bDeinterlace) deinterlace();
@@ -577,20 +580,32 @@ HRESULT ofxBlackmagicGrabber::VideoInputFrameArrived(IDeckLinkVideoInputFrame * 
 			rightEyeFrame->Release();
 		
 		frameCount++;
+    cout << "video frame" << endl;
 	}
-	
-#if 0	//No audio
+
+
+  
+  ////////////////////////////////////////////////////////////////
+  // AUDIO
+  
 	// Handle Audio Frame
-	void*	audioFrameBytes;
 	if (audioFrame)
 	{
-		if (audioOutputFile != -1)
-		{
-			audioFrame->GetBytes(&audioFrameBytes);
-			write(audioOutputFile, audioFrameBytes, audioFrame->GetSampleFrameCount() * g_audioChannels * (g_audioSampleDepth / 8));
-		}
+
+    float currentTime = ofGetElapsedTimef();
+    
+    //sample frame count usually = 1920 = 48000/25 (sampleFreq/frameRate)
+    //i'm presuming this means that we have 1920 16bit samples per channel
+    
+//    cout << "received audio frame, size: " << audioFrame->GetSampleFrameCount() << ", fps: " << 1.0/(currentTime - ttime) << endl;
+    ttime  = currentTime;
+
+    void*	audioFrameBytes;
+    audioFrame->GetBytes(&audioFrameBytes);
+    
+    audioReceiver->audioReceived(audioFrameBytes, audioFrame->GetSampleFrameCount() * (g_audioSampleDepth/8));
 	}
-#endif
+//#endif
 	return S_OK;
 }
 
@@ -736,12 +751,25 @@ bool ofxBlackmagicGrabber::initGrabber(int w, int h) {
 		goto bail;
 	}
 	
-#if 0  // no audio by now
-	result = deckLinkInput->EnableAudioInput(bmdAudioSampleRate48kHz, g_audioSampleDepth, g_audioChannels);
+  
+  //can only use a sample rate of 48000...
+  result = deckLinkInput->EnableAudioInput(bmdAudioSampleRate48kHz, g_audioSampleDepth, g_audioChannels);
+  
+  switch (result) {
+    case S_OK:
+      break;
+    case E_FAIL:
+      ofLog(OF_LOG_ERROR) << "ofxBlackmagicGrabber: Can't enable audio" << endl;
+      goto bail;
+    case E_INVALIDARG:
+      ofLog(OF_LOG_ERROR) << "ofxBlackmagicGrabber: Can't enable audio with given settings" << endl;
+      goto bail;
+      
+  }
+  
 	if(result != S_OK){
 		goto bail;
 	}
-#endif
 	
 	result = deckLinkInput->StartStreams();
 	if(result != S_OK){
@@ -843,4 +871,13 @@ void ofxBlackmagicGrabber::setPixelFormat(ofPixelFormat pixelFormat) {
 
 ofPixelFormat ofxBlackmagicGrabber::getPixelFormat() {
 	return OF_PIXELS_RGB;
+}
+
+void ofxBlackmagicGrabber::setAudioSettings(int sampleDepth, int nChannels) {
+  g_audioSampleDepth = sampleDepth;
+  g_audioChannels = nChannels;
+}
+
+void ofxBlackmagicGrabber::setAudioReceiver(ofxBlackmagicAudioReceiver *receiver) {
+  audioReceiver = receiver;
 }
