@@ -1,3 +1,4 @@
 OSX fork for Arturo Casto's grabber for black magic capture hardware: http://www.blackmagic-design.com/
 
+To get this working you need to install the Blackmagic Desktop Video that should come with your Blackmagic box.
 
